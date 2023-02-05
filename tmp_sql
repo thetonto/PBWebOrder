@@ -1,0 +1,54 @@
+#This was an option if we were going to use a local sql database, but I think we have solved any problems with threading
+
+import configparser
+import logging
+import logging.handlers
+from pb_Woo_Order_Class import PbWooCommerce
+import sqlite3
+import json
+
+config = configparser.ConfigParser()
+config.read('shireButchery.ini')
+
+##############Logging Settings##############
+# Added a logging routine so when
+
+# Change the above to .DEBUG for message infomation and .INFO for runtime minimal messages
+
+logging.basicConfig(level=logging.DEBUG)
+
+# Configure logging to log to a file, making a new file at midnight and keeping the last 3 day's data
+# Give the logger a unique name (good practice)
+logger = logging.getLogger(__name__)
+# Set the log level to LOG_LEVEL (read from settings file)
+logger.setLevel(logging.DEBUG)
+
+# Make a handler that writes to a file, making a new file at midnight and keeping 3 backups
+handler = logging.handlers.TimedRotatingFileHandler(config['LOCAL']['logfile'], when="midnight", backupCount=3)
+# Format each log message like this
+formatter = logging.Formatter("%(asctime)s - %(name)-12s - %(levelname)-8s - %(message)s")
+# Attach the formatter to the handler
+handler.setFormatter(formatter)
+# Attach the handler to the logger
+logger.addHandler(handler)
+#########################################
+
+
+if __name__ == '__main__':
+    # Get list of Orders being packed from
+    logger.info("Start Connection to Woo Commerce")
+    wc = PbWooCommerce()
+    myorders = wc.get_orders('packing')
+    print(myorders)
+    if myorders == 400:
+        logger.info("No Orders were found")
+        exit()
+    con = sqlite3.connect('orders.db')
+    cur = con.cursor()
+    for row in myorders:
+        order_no = row['id']
+        order_data = json.dumps(row)
+        cur.execute("insert into orders(order_number, order_data) values(?, ?)", (order_no, order_data))
+
+    con.commit()
+    con.close()
